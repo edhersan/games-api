@@ -1,14 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from app.database import get_db
 from app.schemas.game import (
-    GameCreate,
-    GameUpdate,
     GameResponse,
     GameArtResponse,
     GameInfoResponse,
-    GameFullResponse,
 )
 
 router = APIRouter(prefix="/games", tags=["games"])
@@ -69,7 +66,7 @@ async def find_game_by_id_or_title_projection(
 
 @router.get(
     "/{identifier}",
-    response_model=GameFullResponse,
+    response_model=GameResponse,
     summary="Obtener juego completo",
     description="Obtiene toda la información disponible de un juego (básico, arte, info y full_info) por ID o nombre"
 )
@@ -119,109 +116,6 @@ async def get_game_info(
             db
         )
         return game
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get(
-    "",
-    response_model=list[GameResponse],
-    summary="Listar juegos",
-    description="Obtiene una lista paginada de todos los juegos"
-)
-async def list_games(
-    skip: int = Query(0, ge=0, description="Número de juegos a saltar"),
-    limit: int = Query(20, ge=1, le=100, description="Límite de juegos por página"),
-    db: AsyncIOMotorDatabase = Depends(get_db_safe)
-):
-    try:
-        cursor = db.games.find().skip(skip).limit(limit)
-        games = await cursor.to_list(length=limit)
-        return [serialize_game(g) for g in games]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post(
-    "",
-    response_model=GameResponse,
-    status_code=status.HTTP_201_CREATED,
-    summary="Crear juego",
-    description="Crea un nuevo juego con toda su información (básico, arte, info, full_info)"
-)
-async def create_game(
-    game: GameCreate,
-    db: AsyncIOMotorDatabase = Depends(get_db_safe)
-):
-    try:
-        doc = game.model_dump(exclude_none=True)
-        result = await db.games.insert_one(doc)
-        created = await db.games.find_one({"_id": result.inserted_id})
-        if not created:
-            raise HTTPException(status_code=500, detail="Error al crear el juego")
-        return serialize_game(created)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.patch(
-    "/{identifier}",
-    response_model=GameResponse,
-    summary="Actualizar juego",
-    description="Actualiza parcialmente un juego (cualquier campo) por ID o nombre"
-)
-async def update_game(
-    game_update: GameUpdate,
-    identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
-    db: AsyncIOMotorDatabase = Depends(get_db_safe)
-):
-    try:
-        if ObjectId.is_valid(identifier):
-            query = {"_id": ObjectId(identifier)}
-        else:
-            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
-        
-        existing = await db.games.find_one(query)
-        if not existing:
-            raise HTTPException(status_code=404, detail="Juego no encontrado")
-
-        update_data = game_update.model_dump(exclude_none=True, exclude_unset=True)
-        if update_data:
-            await db.games.update_one(query, {"$set": update_data})
-
-        updated = await db.games.find_one(query)
-        return serialize_game(updated)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.delete(
-    "/{identifier}",
-    status_code=status.HTTP_204_NO_CONTENT,
-    summary="Eliminar juego",
-    description="Elimina un juego por su ID o nombre"
-)
-async def delete_game(
-    identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
-    db: AsyncIOMotorDatabase = Depends(get_db_safe)
-):
-    try:
-        if ObjectId.is_valid(identifier):
-            query = {"_id": ObjectId(identifier)}
-        else:
-            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
-        
-        result = await db.games.delete_one(query)
-        if result.deleted_count == 0:
-            raise HTTPException(status_code=404, detail="Juego no encontrado")
     except HTTPException:
         raise
     except Exception as e:
