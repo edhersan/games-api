@@ -41,26 +41,6 @@ async def get_db_safe() -> AsyncIOMotorDatabase:
         raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
 
 
-@router.get(
-    "",
-    response_model=list[GameResponse],
-    summary="Listar juegos",
-    description="Obtiene una lista paginada de todos los juegos"
-)
-async def list_games(
-    skip: int = Query(0, ge=0, description="Número de juegos a saltar"),
-    limit: int = Query(20, ge=1, le=100, description="Límite de juegos por página"),
-    db: AsyncIOMotorDatabase = Depends(get_db_safe)
-):
-    try:
-        cursor = db.games.find().skip(skip).limit(limit)
-        games = await cursor.to_list(length=limit)
-        return [serialize_game(g) for g in games]
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 @router.get(
     "/{game_id}",
