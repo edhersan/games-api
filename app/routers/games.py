@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Path
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
+from pymongo.errors import PyMongoError
 from app.database import get_db
 from app.schemas.game import (
     GameResponse,
@@ -24,6 +25,8 @@ async def get_db_safe() -> AsyncIOMotorDatabase:
         return await get_db()
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=f"Database unavailable: {str(e)}")
+    except PyMongoError as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
 
@@ -36,15 +39,22 @@ async def find_game_by_id_or_title(
     Busca un juego por ObjectId o por título (case-insensitive).
     Retorna el documento completo del juego.
     """
-    if ObjectId.is_valid(identifier):
-        query = {"_id": ObjectId(identifier)}
-    else:
-        query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
-    
-    game = await db.games.find_one(query)
-    if not game:
-        raise HTTPException(status_code=404, detail="Juego no encontrado")
-    return serialize_game(game)
+    try:
+        if ObjectId.is_valid(identifier):
+            query = {"_id": ObjectId(identifier)}
+        else:
+            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
+        
+        game = await db.games.find_one(query)
+        if not game:
+            raise HTTPException(status_code=404, detail="Juego no encontrado")
+        return serialize_game(game)
+    except HTTPException:
+        raise
+    except PyMongoError as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def find_game_by_id_or_title_projection(
@@ -53,15 +63,22 @@ async def find_game_by_id_or_title_projection(
     db: AsyncIOMotorDatabase
 ) -> dict:
     """Busca un juego por ObjectId o título con proyección específica"""
-    if ObjectId.is_valid(identifier):
-        query = {"_id": ObjectId(identifier)}
-    else:
-        query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
-    
-    game = await db.games.find_one(query, projection)
-    if not game:
-        raise HTTPException(status_code=404, detail="Juego no encontrado")
-    return serialize_game(game)
+    try:
+        if ObjectId.is_valid(identifier):
+            query = {"_id": ObjectId(identifier)}
+        else:
+            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
+        
+        game = await db.games.find_one(query, projection)
+        if not game:
+            raise HTTPException(status_code=404, detail="Juego no encontrado")
+        return serialize_game(game)
+    except HTTPException:
+        raise
+    except PyMongoError as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get(
@@ -86,17 +103,12 @@ async def get_game_art(
     identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
     db: AsyncIOMotorDatabase = Depends(get_db_safe)
 ):
-    try:
-        game = await find_game_by_id_or_title_projection(
-            identifier,
-            {"_id": 1, "title": 1, "art": 1},
-            db
-        )
-        return game
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    game = await find_game_by_id_or_title_projection(
+        identifier,
+        {"_id": 1, "title": 1, "art": 1},
+        db
+    )
+    return game
 
 
 @router.get(
@@ -109,14 +121,9 @@ async def get_game_info(
     identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
     db: AsyncIOMotorDatabase = Depends(get_db_safe)
 ):
-    try:
-        game = await find_game_by_id_or_title_projection(
-            identifier,
-            {"_id": 1, "title": 1, "info": 1},
-            db
-        )
-        return game
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    game = await find_game_by_id_or_title_projection(
+        identifier,
+        {"_id": 1, "title": 1, "info": 1},
+        db
+    )
+    return game
