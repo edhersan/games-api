@@ -92,7 +92,7 @@ async def find_game_by_id_or_title_projection(
     "/{identifier}",
     response_model=GameResponse,
     summary="Obtener juego completo",
-    description="Obtiene toda la información disponible de un juego (básico, arte, info y full_info) por ID o nombre"
+    description="Obtiene toda la información disponible de un juego por ID o nombre"
 )
 async def get_game_full(
     game: dict = Depends(find_game_by_id_or_title)
@@ -104,7 +104,7 @@ async def get_game_full(
     "/{identifier}/art",
     response_model=GameArtResponse,
     summary="Obtener arte del juego",
-    description="Obtiene solo la información visual del juego (portada, capturas, banner, icono) por ID o nombre"
+    description="Obtiene la información visual del juego (thumbnail, capturas) por ID o nombre"
 )
 async def get_game_art(
     identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
@@ -112,7 +112,7 @@ async def get_game_art(
 ):
     game = await find_game_by_id_or_title_projection(
         identifier,
-        {"_id": 1, "title": 1, "art": 1},
+        {"_id": 1, "title": 1, "thumbnail": 1, "screenshots": 1},
         db
     )
     return game
@@ -122,7 +122,7 @@ async def get_game_art(
     "/{identifier}/info",
     response_model=GameInfoResponse,
     summary="Obtener info y descripción del juego",
-    description="Obtiene la información descriptiva del juego (descripción, desarrollador, publisher, ratings, etc.) por ID o nombre"
+    description="Obtiene la información descriptiva del juego por ID o nombre"
 )
 async def get_game_info(
     identifier: str = Path(..., description="ID (ObjectId) o nombre del juego"),
@@ -130,7 +130,9 @@ async def get_game_info(
 ):
     game = await find_game_by_id_or_title_projection(
         identifier,
-        {"_id": 1, "title": 1, "info": 1},
+        {"_id": 1, "title": 1, "short_description": 1, "description": 1, 
+         "publisher": 1, "developer": 1, "genre": 1, "platform": 1, 
+         "release_date": 1, "game_url": 1, "minimum_system_requirements": 1},
         db
     )
     return game

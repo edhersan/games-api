@@ -2,9 +2,9 @@ from bson import ObjectId
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 from typing_extensions import Annotated
 from pydantic.functional_validators import BeforeValidator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 import re
-from pydantic_core import core_schema
+from datetime import datetime
 
 
 def validate_object_id(v: str) -> str:
@@ -31,117 +31,119 @@ def validate_url(v: str) -> str:
     return v
 
 
+class Screenshot(BaseModel):
+    id: Optional[int] = None
+    image: str
+
+
+class SystemRequirements(BaseModel):
+    os: Optional[str] = None
+    processor: Optional[str] = None
+    memory: Optional[str] = None
+    graphics: Optional[str] = None
+    storage: Optional[str] = None
+
+
 class GameBase(BaseModel):
-    title: str = Field(..., min_length=1, max_length=100)
-    platform: str = Field(..., min_length=1)
-    genre: str = Field(..., min_length=1)
-    release_year: int = Field(..., ge=1970, le=2030)
+    """Esquema base compatible con freetogame API"""
+    title: str = Field(..., min_length=1, max_length=200)
+    platform: Optional[str] = None
+    genre: Optional[str] = None
+    release_date: Optional[str] = None
+    release_year: Optional[int] = Field(None, ge=1970, le=2030)
+    game_id: Optional[int] = None
+    thumbnail: Optional[str] = None
+    short_description: Optional[str] = None
+    description: Optional[str] = None
+    game_url: Optional[str] = None
+    publisher: Optional[str] = None
+    developer: Optional[str] = None
+    minimum_system_requirements: Optional[SystemRequirements] = None
+    screenshots: List[Screenshot] = Field(default_factory=list)
 
-
-class GameArt(BaseModel):
-    cover_url: Optional[str] = Field(None, description="URL de la portada del juego")
-    screenshots: List[str] = Field(default_factory=list, description="Capturas de pantalla")
-    background_url: Optional[str] = Field(None, description="Imagen de fondo/banner")
-    icon_url: Optional[str] = Field(None, description="Icono del juego")
-
-    @field_validator("cover_url", "background_url", "icon_url", mode="before")
-    @classmethod
-    def validate_single_url(cls, v):
-        return validate_url(v)
-
-    @field_validator("screenshots", mode="before")
-    @classmethod
-    def validate_screenshots(cls, v):
-        if isinstance(v, list):
-            return [validate_url(url) for url in v]
-        return v
-
-
-class GameInfo(BaseModel):
-    description: Optional[str] = Field(None, description="Descripción completa del juego")
-    short_description: Optional[str] = Field(None, max_length=500, description="Descripción corta")
-    developer: Optional[str] = Field(None, description="Desarrollador")
-    publisher: Optional[str] = Field(None, description="Publicador")
-    esrb_rating: Optional[str] = Field(None, description="Clasificación ESRB")
-    pegi_rating: Optional[str] = Field(None, description="Clasificación PEGI")
-    players: Optional[str] = Field(None, description="Modos de juego (ej: Single-player, Multiplayer)")
-    languages: List[str] = Field(default_factory=list, description="Idiomas soportados")
-
-
-class GameFullInfo(GameInfo):
-    system_requirements: Optional[dict] = Field(None, description="Requisitos del sistema (min/recomendados)")
-    release_dates: dict = Field(default_factory=dict, description="Fechas de lanzamiento por región")
-    tags: List[str] = Field(default_factory=list, description="Etiquetas/géneros adicionales")
-    website: Optional[str] = Field(None, description="Sitio web oficial")
-    trailer_url: Optional[str] = Field(None, description="URL del trailer")
-
-    @field_validator("website", "trailer_url", mode="before")
+    @field_validator("thumbnail", "game_url", mode="before")
     @classmethod
     def validate_urls(cls, v):
         return validate_url(v)
 
-
-class GameCreate(GameBase):
-    art: Optional[GameArt] = None
-    info: Optional[GameInfo] = None
-    full_info: Optional[GameFullInfo] = None
-
-
-class GameUpdate(BaseModel):
-    title: Optional[str] = Field(None, min_length=1, max_length=100)
-    platform: Optional[str] = None
-    genre: Optional[str] = None
-    release_year: Optional[int] = Field(None, ge=1970, le=2030)
-    art: Optional[GameArt] = None
-    info: Optional[GameInfo] = None
-    full_info: Optional[GameFullInfo] = None
-
-
-class GameResponse(GameBase):
-    id: str = Field(alias="_id")
-    art: Optional[GameArt] = None
-    info: Optional[GameInfo] = None
-    full_info: Optional[GameFullInfo] = None
+    @field_validator("release_year", mode="before")
+    @classmethod
+    def extract_year_from_date(cls, v):
+        if v is not None:
+            return v
+        return None
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        extra="allow"
+    )
+
+
+class GameCreate(GameBase):
+    pass
+
+
+class GameUpdate(BaseModel):
+    title: Optional[str] = Field(None, min_length=1, max_length=200)
+    platform: Optional[str] = None
+    genre: Optional[str] = None
+    release_date: Optional[str] = None
+    release_year: Optional[int] = Field(None, ge=1970, le=2030)
+    thumbnail: Optional[str] = None
+    short_description: Optional[str] = None
+    description: Optional[str] = None
+    game_url: Optional[str] = None
+    publisher: Optional[str] = None
+    developer: Optional[str] = None
+    minimum_system_requirements: Optional[SystemRequirements] = None
+    screenshots: Optional[List[Screenshot]] = None
+
+
+class GameResponse(GameBase):
+    id: str = Field(alias="_id")
+    created_at: Optional[datetime] = None
+    updated_at: Optional[datetime] = None
+
+    model_config = ConfigDict(
+        populate_by_name=True,
+        arbitrary_types_allowed=True,
+        extra="allow"
     )
 
 
 class GameArtResponse(BaseModel):
     id: str = Field(alias="_id")
     title: str
-    art: Optional[GameArt] = None
+    thumbnail: Optional[str] = None
+    screenshots: List[Screenshot] = Field(default_factory=list)
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        extra="allow"
     )
 
 
 class GameInfoResponse(BaseModel):
     id: str = Field(alias="_id")
     title: str
-    info: Optional[GameInfo] = None
+    short_description: Optional[str] = None
+    description: Optional[str] = None
+    publisher: Optional[str] = None
+    developer: Optional[str] = None
+    genre: Optional[str] = None
+    platform: Optional[str] = None
+    release_date: Optional[str] = None
+    game_url: Optional[str] = None
+    minimum_system_requirements: Optional[SystemRequirements] = None
 
     model_config = ConfigDict(
         populate_by_name=True,
         arbitrary_types_allowed=True,
+        extra="allow"
     )
 
 
-class GameFullResponse(BaseModel):
-    id: str = Field(alias="_id")
-    title: str
-    platform: str
-    genre: str
-    release_year: int
-    art: Optional[GameArt] = None
-    info: Optional[GameInfo] = None
-    full_info: Optional[GameFullInfo] = None
-
-    model_config = ConfigDict(
-        populate_by_name=True,
-        arbitrary_types_allowed=True,
-    )
+class GameFullResponse(GameResponse):
+    pass
