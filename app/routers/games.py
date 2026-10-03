@@ -1,5 +1,5 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, HTTPException, Path
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from pymongo.errors import PyMongoError
@@ -24,12 +24,6 @@ def build_title_query(identifier: str) -> dict:
     """Construye query case-insensitive escapando caracteres especiales de regex"""
     escaped = re.escape(identifier.strip())
     return {"title": {"$regex": f"^{escaped}$", "$options": "i"}}
-
-
-def build_title_search_query(name: str) -> dict:
-    """Construye una query para buscar el nombre dentro del título"""
-    escaped = re.escape(name.strip())
-    return {"title": {"$regex": escaped, "$options": "i"}}
 
 
 async def get_db_safe() -> AsyncIOMotorDatabase:
@@ -96,22 +90,19 @@ async def find_game_by_id_or_title_projection(
 
 @router.get(
     "",
-    response_model=list[GameResponse],
-    summary="Listar juegos por nombre",
-    description="Lista los juegos cuyo título contiene el nombre indicado, sin distinguir mayúsculas y minúsculas",
+    response_model=list[str],
+    summary="Listar nombres de juegos",
+    description="Lista los nombres de todos los juegos disponibles",
 )
-async def list_games_by_name(
-    name: str = Query(..., min_length=1, description="Nombre o parte del nombre del juego"),
-    limit: int = Query(20, ge=1, le=100, description="Cantidad máxima de resultados"),
+async def list_game_names(
     db: AsyncIOMotorDatabase = Depends(get_db_safe),
 ):
-    name = name.strip()
-    if not name:
-        raise HTTPException(status_code=422, detail="El nombre no puede estar vacío")
-
     try:
-        cursor = db.games.find(build_title_search_query(name)).sort("title", 1).limit(limit)
-        return [serialize_game(game) async for game in cursor]
+        cursor = db.games.find(
+            {"title": {"$exists": True}},
+            {"_id": 0, "title": 1},
+        ).sort("title", 1)
+        return [game["title"] async for game in cursor]
     except PyMongoError as e:
         raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
     except Exception as e:

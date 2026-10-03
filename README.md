@@ -23,6 +23,7 @@ uvicorn app.main:app --reload
 ## Endpoints principales
 - `GET /health` → estado del servicio
 - `GET /ping` → prueba rápida
+- `GET /games` → lista con los nombres de todos los juegos
 - `GET /games/{identifier}` → juego completo por ObjectId o título
 - `GET /games/{identifier}/art` → arte del juego
 - `GET /games/{identifier}/info` → información descriptiva
