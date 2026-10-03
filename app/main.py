@@ -1,22 +1,23 @@
-from contextlib import asynccontextmanager
 from fastapi import FastAPI
-from app.database import connect_to_mongo, close_mongo_connection
+from app.database import get_db, ensure_indexes, close_mongo_connection
 from app.routers import games
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    await connect_to_mongo()
-    yield
-    await close_mongo_connection()
-
 
 app = FastAPI(
     title="Games API",
     docs_url="/docs",
     redoc_url="/redoc",
-    lifespan=lifespan
 )
+
+
+@app.on_event("startup")
+async def startup():
+    await ensure_indexes()
+
+
+@app.on_event("shutdown")
+async def shutdown():
+    await close_mongo_connection()
+
 
 app.include_router(games.router)
 

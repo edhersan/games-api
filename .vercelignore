@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.env
+.git/
+.gitignore
+README.md
+*.md
+pytest.ini
+tests/
+venv/
+.venv/
+.env.local
+.env.*.local
+.DS_Store
