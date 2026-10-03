@@ -1,3 +1,4 @@
+import re
 from fastapi import APIRouter, Depends, HTTPException, Path
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
@@ -17,6 +18,12 @@ def serialize_game(game: dict) -> dict:
     if game and "_id" in game:
         game["_id"] = str(game["_id"])
     return game
+
+
+def build_title_query(identifier: str) -> dict:
+    """Construye query case-insensitive escapando caracteres especiales de regex"""
+    escaped = re.escape(identifier.strip())
+    return {"title": {"$regex": f"^{escaped}$", "$options": "i"}}
 
 
 async def get_db_safe() -> AsyncIOMotorDatabase:
@@ -43,7 +50,7 @@ async def find_game_by_id_or_title(
         if ObjectId.is_valid(identifier):
             query = {"_id": ObjectId(identifier)}
         else:
-            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
+            query = build_title_query(identifier)
         
         game = await db.games.find_one(query)
         if not game:
@@ -67,7 +74,7 @@ async def find_game_by_id_or_title_projection(
         if ObjectId.is_valid(identifier):
             query = {"_id": ObjectId(identifier)}
         else:
-            query = {"title": {"$regex": f"^{identifier}$", "$options": "i"}}
+            query = build_title_query(identifier)
         
         game = await db.games.find_one(query, projection)
         if not game:
