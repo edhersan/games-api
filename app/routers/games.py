@@ -1,10 +1,11 @@
 import re
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException, Path, status
 from motor.motor_asyncio import AsyncIOMotorDatabase
 from bson import ObjectId
 from pymongo.errors import PyMongoError
 from app.database import get_db
 from app.schemas.game import (
+    GameCreate,
     GameResponse,
     GameArtResponse,
     GameInfoResponse,
@@ -103,6 +104,53 @@ async def list_game_names(
             {"_id": 0, "title": 1},
         ).sort("title", 1)
         return [game["title"] async for game in cursor]
+    except PyMongoError as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post(
+    "",
+    response_model=GameResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Agregar juego",
+    description="Agrega un juego a la colección",
+)
+async def create_game(
+    game: GameCreate,
+    db: AsyncIOMotorDatabase = Depends(get_db_safe),
+):
+    try:
+        result = await db.games.insert_one(game.model_dump(exclude_none=True))
+        created_game = await db.games.find_one({"_id": result.inserted_id})
+        if not created_game:
+            raise HTTPException(status_code=500, detail="No se pudo recuperar el juego creado")
+        return serialize_game(created_game)
+    except HTTPException:
+        raise
+    except PyMongoError as e:
+        raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete(
+    "/{identifier}",
+    summary="Eliminar juego por nombre",
+    description="Elimina un juego por su nombre exacto, sin distinguir mayúsculas y minúsculas",
+)
+async def delete_game(
+    identifier: str = Path(..., min_length=1, description="Nombre exacto del juego"),
+    db: AsyncIOMotorDatabase = Depends(get_db_safe),
+):
+    try:
+        result = await db.games.delete_one(build_title_query(identifier))
+        if result.deleted_count == 0:
+            raise HTTPException(status_code=404, detail="Juego no encontrado")
+        return {"message": "Juego eliminado", "title": identifier.strip()}
+    except HTTPException:
+        raise
     except PyMongoError as e:
         raise HTTPException(status_code=503, detail=f"Database error: {str(e)}")
     except Exception as e:

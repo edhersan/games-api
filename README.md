@@ -24,6 +24,8 @@ uvicorn app.main:app --reload
 - `GET /health` → estado del servicio
 - `GET /ping` → prueba rápida
 - `GET /games` → lista con los nombres de todos los juegos
+- `POST /games` → agrega un juego
+- `DELETE /games/{name}` → elimina un juego por nombre exacto
 - `GET /games/{identifier}` → juego completo por ObjectId o título
 - `GET /games/{identifier}/art` → arte del juego
 - `GET /games/{identifier}/info` → información descriptiva
